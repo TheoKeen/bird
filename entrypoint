@@ -1,0 +1,30 @@
+#!/bin/sh
+
+
+getip4int()
+{
+local interface=$1
+ip_address=$(ip -o -4 addr show "$interface" | awk '{print $4}' | cut -d/ -f1)
+echo $ip_address
+
+}
+
+
+#in docker the default gateway ip of a network cannot be used in a container IPAM config.
+#This script modifies the container IP after start to  ".1" (gateway) for selected interfaces (IF2GW)
+#This setup assumes /24 networks.
+if [ ! -z $IF2GW ]; then
+
+  for interface in $(echo "$IF2GW" | tr ',' '\n'); do
+    echo "Interface: $interface"
+    original_ip=$(getip4int $interface)
+    modified_ip=$(echo "$original_ip" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\)\.[0-9]*/\1.1/')
+    echo $modified_ip
+    ip addr del ${original_ip}/24 dev $interface
+    ip addr add ${modified_ip}/24 dev $interface
+  done
+
+fi
+
+/usr/sbin/bird -c /etc/bird.conf -d
+
